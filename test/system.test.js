@@ -5,10 +5,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { createApp } from '../server.mjs';
+import { hashPassword } from '../server/auth.js';
 import { pickupSlots } from '../src/domain.js';
 
+const teacherCredentials = { id: 'teacher', username: 'test-teacher', password: 'teacher-test-only' };
+const teacherPasswordHash = await hashPassword(teacherCredentials.password);
+
 async function setup(t, dataFile) {
-  const server = createApp({ dataFile }).listen(0, '127.0.0.1');
+  const server = createApp({ dataFile, teacherUsername: teacherCredentials.username, teacherPasswordHash })
+    .listen(0, '127.0.0.1');
   await once(server, 'listening');
   t.after(() => new Promise(resolve => server.close(resolve)));
   const port = server.address().port;
@@ -33,7 +38,9 @@ test('老師記分後，學生可使用同一餘額兌換禮物並預約', async
 
   assert.equal((await request('session')).result, null);
   await request('login', { body: { id: 'teacher', pin: '1301' }, status: 401 });
-  const staff = await request('login', { body: { id: 'teacher', pin: '2468' } });
+  await request('login', { body: { ...teacherCredentials, password: 'incorrect' }, status: 401 });
+  const staff = await request('login', { body: teacherCredentials });
+  assert.ok(staff.cookie);
   const child = await request('login', { body: { id: 's001', pin: '1301' } });
   const other = await request('login', { body: { id: 's002', pin: '1302' } });
   const third = await request('login', { body: { id: 's003', pin: '1303' } });
@@ -80,6 +87,8 @@ test('老師記分後，學生可使用同一餘額兌換禮物並預約', async
   const nextBooking = { ...booking, operationId: 'd'.repeat(32) };
   await reserve(nextBooking);
   await request('actions/collect', { cookie: staff.cookie, body: { bookingId: nextBooking.operationId } });
+  await request('logout', { cookie: staff.cookie, body: {} });
+  assert.equal((await request('session', { cookie: staff.cookie })).result, null);
   const reopened = await setup(t, dataFile);
   const { result: saved } = await reopened('login', { body: { id: 's001', pin: '1301' } });
   assert.equal(saved.bookings[0].status, 'collected');

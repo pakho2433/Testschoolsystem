@@ -50,10 +50,9 @@ export function seedState(now = Date.now()) {
   };
 }
 
-export function demoAccount(id, pin, teacherPin = '2468') {
-  if (id === teacher.id && pin === teacherPin) return teacher;
+export function studentIdentity(id) {
   const student = students.find(item => item.id === id);
-  if (!student || pin !== `13${id.slice(-2)}`) return null;
+  if (!student) return null;
   return { id, role: 'student', name: student.name, initial: student.initial, color: student.color };
 }
 

@@ -69,7 +69,6 @@ textarea { resize: vertical; width: 100%; }
 .nav-link:hover { background: #f4f7fc; color: var(--blue-dark); }
 .nav-link.is-active { background: #eaf0ff; color: var(--blue-dark); }
 .sidebar-bottom { margin-top: auto; }
-.local-data-label { padding: 0 4px 12px; text-align: center; font-size: 11px; color: var(--muted); }
 .profile-summary {
   display: flex; align-items: center; gap: 9px; padding: 9px 6px 9px 8px;
   background: #f7f9fc; border: 1px solid var(--line); border-radius: 12px;

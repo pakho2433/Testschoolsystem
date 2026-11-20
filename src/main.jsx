@@ -4,7 +4,7 @@ import {
   ArrowLeft, ArrowRight, CalendarDays, CheckCircle2, ChevronRight, Gift, History,
   LayoutDashboard, LogOut, QrCode, ScanLine, UserRound, X,
 } from 'lucide-react';
-import { api, browserDemo } from './api.js';
+import { api } from './api.js';
 import { students, teacher } from './domain.js';
 import { Scanner } from './scanner.jsx';
 import { BookingsPage, StudentGifts, StudentQR } from './student.jsx';
@@ -31,14 +31,18 @@ function getRoute() {
 
 function Login({ scanned, login, initialError, retry }) {
   const [id, chooseId] = useState(teacher.id);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
   const profile = scanned ? teacher.id : id;
+  const isTeacher = profile === teacher.id;
 
   function choose(value) {
     chooseId(value);
     setPin('');
+    setPassword('');
     setError('');
   }
 
@@ -48,8 +52,7 @@ function Login({ scanned, login, initialError, retry }) {
     setPending(true);
     setError('');
     try {
-      const demoPin = profile === teacher.id ? '2468' : `13${profile.slice(-2)}`;
-      await login(profile, browserDemo ? demoPin : pin.trim());
+      await login(isTeacher ? { id: profile, username, password } : { id: profile, pin: pin.trim() });
     } catch (problem) {
       setError(messageFor(problem));
     } finally {
@@ -67,31 +70,42 @@ function Login({ scanned, login, initialError, retry }) {
       <div className="login-form-wrap">
         <div className="login-mobile-brand"><Brand /></div>
         {scanned && <a className="back-link" href="#/"><ArrowLeft size={17} /> 返回首頁</a>}
-        <PageHeading title={scanned ? '老師登入' : '選擇測試身份'}
-          description={scanned ? '登入後，會直接開啟這位學生的加減分表格。' : '選擇老師或學生帳戶，體驗記分及兌換流程。'} />
+        <PageHeading title={scanned ? '老師登入' : '登入星點校園'}
+          description={scanned ? '登入後，會直接開啟這位學生的加減分表格。' : '選擇老師或學生帳戶，登入後即可使用。'} />
         {initialError && <Notice>{initialError} <button className="text-button" onClick={retry}>重試</button></Notice>}
         <form className="login-form" onSubmit={submit}>
-          <fieldset className="profile-options">
+          {!scanned && <fieldset className="profile-options" disabled={pending}>
             <legend className="sr-only">測試帳戶</legend>
-            {(scanned ? [teacher] : [teacher, ...students]).map(person =>
+            {[teacher, ...students].map(person =>
               <button key={person.id} type="button" className="profile-option" aria-pressed={person.id === profile} onClick={() => choose(person.id)}>
                 <Avatar person={person} />
                 <span><strong>{person.name}</strong><span>{person.id === teacher.id ? '測試老師' : `${person.className} 班 · ${person.seat} 號`}</span></span>
                 <span className="radio-mark" aria-hidden="true" />
               </button>
             )}
-          </fieldset>
-          {!browserDemo && <label className="field" htmlFor="login-pin">
+          </fieldset>}
+          {isTeacher ? <>
+            <label className="field" htmlFor="login-username">
+              老師帳號
+              <input id="login-username" name="username" type="text" autoComplete="username" autoCapitalize="none"
+                spellCheck={false} maxLength={128} required value={username} onChange={event => setUsername(event.target.value)}
+                placeholder="輸入老師帳號" />
+            </label>
+            <label className="field" htmlFor="login-password">
+              密碼
+              <input id="login-password" name="password" type="password" autoComplete="current-password" maxLength={128}
+                required value={password} onChange={event => setPassword(event.target.value)} placeholder="輸入密碼" />
+            </label>
+          </> : <label className="field" htmlFor="login-pin">
             測試 PIN
             <input id="login-pin" type="password" inputMode="numeric" autoComplete="current-password" maxLength={32} required
               value={pin} onChange={event => setPin(event.target.value)} placeholder="輸入此帳戶的 PIN" />
           </label>}
           {error && <Notice>{error}</Notice>}
           <button className="button button--primary login-submit" disabled={pending} type="submit">
-            {pending ? '登入中…' : '登入測試身份'} <ArrowRight size={18} />
+            {pending ? '登入中…' : '登入'} <ArrowRight size={18} />
           </button>
         </form>
-        {browserDemo && <p className="helper">瀏覽器測試版的積分與預約只會儲存在此瀏覽器。</p>}
       </div>
     </main>
   </div>;
@@ -115,7 +129,6 @@ function Workspace({ view, active, page, switchIdentity, children }) {
       <a href={`#/${home}`} className="brand-link" aria-label="星點校園首頁"><Brand /></a>
       <nav className="side-nav" aria-label="主選單"><NavLinks items={items} active={active} /></nav>
       <div className="sidebar-bottom">
-        {browserDemo && <p className="local-data-label">積分及預約僅存於此瀏覽器</p>}
         <div className="profile-summary">
           <Avatar person={view.user} />
           <span><strong>{view.user.name}</strong><span>{isTeacher ? '老師帳戶' : '學生帳戶'}</span></span>
@@ -128,7 +141,7 @@ function Workspace({ view, active, page, switchIdentity, children }) {
         <div className="breadcrumb"><span>{isTeacher ? '老師工作台' : '學生專區'}</span><ChevronRight size={16} /><span>{pageTitle}</span></div>
         <a href={`#/${home}`} className="topbar-brand" aria-label="星點校園首頁"><Brand /></a>
         <div className="topbar-actions">
-          <span className="mode-pill" title={browserDemo ? '積分及預約僅存於此瀏覽器' : '使用測試帳戶'}><span />{browserDemo ? '瀏覽器測試' : '測試模式'}</span>
+          <span className="mode-pill" title="使用測試帳戶"><span />測試模式</span>
           <button className="icon-button mobile-switch" onClick={switchIdentity}><LogOut size={16} /> 切換身份</button>
         </div>
       </header>
@@ -229,7 +242,7 @@ function App() {
 
   const scanRoute = route.startsWith('scan/');
   if (view === undefined) return <main className="loading"><Brand /><p role="status">正在載入…</p></main>;
-  if (!view) return <Login key={String(scanRoute)} scanned={scanRoute} login={(id, pin) => update(() => api.login(id, pin))}
+  if (!view) return <Login key={String(scanRoute)} scanned={scanRoute} login={credentials => update(() => api.login(credentials))}
     initialError={initialError} retry={refresh} />;
 
   const isTeacher = view.user.role === 'teacher';

@@ -2,9 +2,11 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { networkInterfaces } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
+import { loadEnvFile } from 'node:process';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
-import { AppError, applyAction, demoAccount, getView, seedState } from './src/domain.js';
+import { AppError, applyAction, getView, seedState } from './src/domain.js';
+import { createLogin, hashPassword } from './server/auth.js';
 
 const appDirectory = dirname(fileURLToPath(import.meta.url));
 const sessionCookie = 'star_school_session';
@@ -12,7 +14,8 @@ const sessionDuration = 8 * 60 * 60 * 1000;
 
 export function createApp({
   dataFile = resolve(appDirectory, 'data/state.json'),
-  teacherPin = '2468',
+  teacherUsername,
+  teacherPasswordHash,
   publicAppUrl = '',
 } = {}) {
   mkdirSync(dirname(dataFile), { recursive: true });
@@ -25,6 +28,7 @@ export function createApp({
   if (!existsSync(dataFile)) writeState(state);
 
   const app = express();
+  const login = createLogin({ teacherUsername, teacherPasswordHash });
   const sessions = new Map();
   app.disable('x-powered-by');
   if (process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
@@ -62,10 +66,8 @@ export function createApp({
     res.json(user ? view(user) : null);
   });
 
-  app.post('/api/login', (req, res) => {
-    const { id, pin } = req.body || {};
-    const user = demoAccount(id, pin, teacherPin);
-    if (!user) throw new AppError('帳戶或 PIN 不正確。', 401);
+  app.post('/api/login', async (req, res) => {
+    const user = await login(req.body || {});
     for (const [key, session] of sessions) {
       if (session.validUntil <= Date.now()) sessions.delete(key);
     }
@@ -84,7 +86,7 @@ export function createApp({
 
   app.post('/api/actions/:action', (req, res) => {
     const user = activeUser(req);
-    if (!user) throw new AppError('登入已逾時，請重新登入。', 401);
+    if (!user) throw new AppError('請先登入系統。', 401);
     const nextState = structuredClone(state);
     applyAction(nextState, user, req.params.action, req.body || {});
     writeState(nextState);
@@ -107,11 +109,16 @@ export function createApp({
 }
 
 if (resolve(process.argv[1] || '') === fileURLToPath(import.meta.url)) {
+  const envPath = join(appDirectory, '.env');
+  if (existsSync(envPath)) loadEnvFile(envPath);
   const port = Number(process.env.PORT || 4173);
   const publicAppUrl = process.env.PUBLIC_APP_URL || '';
+  const passwordHash = process.env.TEACHER_PASSWORD_HASH ||
+    (process.env.TEACHER_PASSWORD ? await hashPassword(process.env.TEACHER_PASSWORD) : '');
   const app = createApp({
     dataFile: process.env.DATA_FILE ? resolve(process.env.DATA_FILE) : undefined,
-    teacherPin: process.env.TEACHER_PIN || undefined,
+    teacherUsername: process.env.TEACHER_USERNAME,
+    teacherPasswordHash: passwordHash,
     publicAppUrl,
   });
   app.listen(port, '0.0.0.0', () => {
