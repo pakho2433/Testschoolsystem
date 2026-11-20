@@ -33,4 +33,6 @@ npm start
 
 `npm run dev` 可在瀏覽器試用，`npm run build:demo` 產生可放到 GitHub Pages 的 `dist-demo` 靜態檔案。瀏覽器版會先顯示王老師的工作台，按「切換身份」即可用學生帳戶兌換。每個瀏覽器各有一份資料，用另一部手機掃碼時會使用該手機自己的資料。需要同步時請使用上面的共用版。
 
+已建置的靜態檔案在 `gh-pages` 分支。如要開放試用網址，請在 GitHub 專案的 **Settings → Pages** 選擇 **Deploy from a branch**，選取 `gh-pages` 和 `/(root)` 後儲存。
+
 `npm test` 可驗證權限、加減分、重試、預約兌換、退款與資料保存。
